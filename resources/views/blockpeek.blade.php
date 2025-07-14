@@ -19,20 +19,22 @@
         <!-- Messages will be appended here -->
       </div>
 
-      <!-- Input Area -->
-      <textarea
-        id="prompt"
-        rows="3"
-        placeholder="Ask anything about blockchain transactions..."
-        class="w-full border border-blue-200 rounded-xl p-4 resize-none shadow focus:ring-2 focus:ring-blue-300 mb-2"
-      ></textarea>
+      <!-- Input & Button -->
+      <div class="flex gap-2">
+        <textarea
+          id="prompt"
+          rows="2"
+          placeholder="Ask anything about blockchain transactions..."
+          class="flex-grow border border-blue-200 rounded-xl p-3 resize-none shadow focus:ring-2 focus:ring-blue-300"
+        ></textarea>
 
-      <button
-        onclick="askAI()"
-        class="w-full bg-blue-600 text-white font-semibold py-3 px-6 rounded-xl hover:bg-blue-700 transition"
-      >
-        Ask AI
-      </button>
+        <button
+          onclick="askAI()"
+          class="bg-blue-600 text-white font-semibold py-2 px-4 rounded-xl hover:bg-blue-700 transition shrink-0"
+        >
+          Ask
+        </button>
+      </div>
     </div>
   </div>
 
@@ -40,16 +42,24 @@
     const chatBox = document.getElementById('chat-box');
     const promptInput = document.getElementById('prompt');
 
-    // Load chat history from localStorage
+    // ✅ Load chat history OR show greeting
     window.onload = function () {
-      const savedHistory = JSON.parse(localStorage.getItem('blockpeek_chat')) || [];
-      savedHistory.forEach(msg => appendMessage(msg.role, msg.text));
-      chatBox.scrollTop = chatBox.scrollHeight;
+      const saved = JSON.parse(localStorage.getItem("blockpeek_chat") || "[]");
+
+      if (saved.length === 0) {
+        const welcome = "👋 Welcome to Blockpeek! Ask me anything about blockchain.";
+        appendMessage("ai", welcome);
+        saveToHistory("ai", welcome);
+      } else {
+        saved.forEach(m => appendMessage(m.role, m.text));
+      }
+
+      scrollToBottom();
     };
 
-    // Press Enter = Submit (Shift+Enter for newline)
-    promptInput.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter' && !e.shiftKey) {
+    // ✅ Handle Enter key for submitting
+    promptInput.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
         askAI();
       }
@@ -59,52 +69,79 @@
       const prompt = promptInput.value.trim();
       if (!prompt) return;
 
+      // 🧹 /clear command
+      if (prompt.toLowerCase() === "/clear") {
+        chatBox.innerHTML = "";
+        localStorage.removeItem("blockpeek_chat");
+        promptInput.value = "";
+        return;
+      }
+
       appendMessage("user", prompt);
       saveToHistory("user", prompt);
       promptInput.value = "";
-      chatBox.scrollTop = chatBox.scrollHeight;
+      scrollToBottom();
 
-      appendMessage("ai", "Thinking... 🤖");
+      // ⏳ Add spinner
+      const thinkingId = appendMessage("ai", `
+        <div class="flex items-center gap-2">
+          <svg class="animate-spin h-5 w-5 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+          </svg>
+          <span class="text-sm text-gray-600">Thinking...</span>
+        </div>
+      `, true); // mark temporary
 
       try {
         const res = await puter.ai.chat(prompt, { model: "gpt-4.1-nano" });
 
-        // Remove "Thinking..." message
-        removeLastMessage("ai");
-        appendMessage("ai", res);
+        replaceTempMessage(thinkingId, "ai", res);
         saveToHistory("ai", res);
-        chatBox.scrollTop = chatBox.scrollHeight;
-
+        scrollToBottom();
       } catch (err) {
         console.error(err);
-        removeLastMessage("ai");
-        appendMessage("ai", "❌ Failed to get AI response.");
+        replaceTempMessage(thinkingId, "ai", "⚠️ Failed to get a response.");
       }
     }
 
-    function appendMessage(role, text) {
-      const msg = document.createElement("div");
-      msg.className = role === "user"
-        ? "text-right text-blue-600"
-        : "text-left text-gray-800";
-      msg.innerHTML = `<div class="inline-block bg-${role === 'user' ? 'blue' : 'gray'}-100 p-3 rounded-xl shadow">${text}</div>`;
-      chatBox.appendChild(msg);
+    // ✅ Append chat bubble
+    function appendMessage(role, content, temporary = false) {
+      const bubble = document.createElement("div");
+      bubble.className = `mb-2 px-4 py-2 rounded-xl max-w-[80%] whitespace-pre-wrap ${
+        role === "user"
+          ? "bg-blue-600 text-white self-end ml-auto"
+          : "bg-gray-200 text-gray-900 self-start"
+      }`;
+      bubble.innerHTML = content;
+      if (temporary) bubble.dataset.temp = "true";
+      chatBox.appendChild(bubble);
+      return bubble;
     }
 
-    function removeLastMessage(role) {
-      const messages = chatBox.querySelectorAll("div");
-      for (let i = messages.length - 1; i >= 0; i--) {
-        if (messages[i].className.includes(role === "user" ? "text-right" : "text-left")) {
-          messages[i].remove();
-          break;
-        }
+    // ✅ Replace last "thinking" with final answer
+    function replaceTempMessage(tempEl, role, content) {
+      if (tempEl && tempEl.dataset.temp === "true") {
+        tempEl.innerHTML = content;
+        tempEl.className = `mb-2 px-4 py-2 rounded-xl max-w-[80%] whitespace-pre-wrap ${
+          role === "user"
+            ? "bg-blue-600 text-white self-end ml-auto"
+            : "bg-gray-200 text-gray-900 self-start"
+        }`;
+        delete tempEl.dataset.temp;
       }
     }
 
+    // ✅ Save chat
     function saveToHistory(role, text) {
-      const history = JSON.parse(localStorage.getItem('blockpeek_chat')) || [];
+      const history = JSON.parse(localStorage.getItem("blockpeek_chat")) || [];
       history.push({ role, text });
-      localStorage.setItem('blockpeek_chat', JSON.stringify(history));
+      localStorage.setItem("blockpeek_chat", JSON.stringify(history));
+    }
+
+    // ✅ Auto-scroll to latest
+    function scrollToBottom() {
+      chatBox.scrollTop = chatBox.scrollHeight;
     }
   </script>
 
