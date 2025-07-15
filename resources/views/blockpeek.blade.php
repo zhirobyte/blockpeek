@@ -6,152 +6,80 @@
   <title>Blockpeek</title>
   @vite(['resources/css/app.css', 'resources/js/app.js'])
   <script src="https://js.puter.com/v2/"></script>
+    @vite(['resources/css/app.css', 'resources/js/app.js'])
+    
+    @vite(['resources/css/app.css', 'resources/js/tracker.js'])
 </head>
-<body class="bg-white text-gray-800 font-sans">
 
-  <div class="min-h-screen flex flex-col justify-center items-center px-4 py-10">
-    <div class="w-full max-w-2xl">
-      <h1 class="text-3xl font-bold text-blue-600 mb-2">🔍 Blockpeek</h1>
-      <p class="text-gray-500 mb-6">Ask about the blockchain. Powered by AI.</p>
+<body class="bg-white text-gray-850 font-sans">
+  
+  <h1 class="text-3xl font-bold text-blue-700 mb-2">🔍 Blockpeek</h1>
+  <div class="min-h-screen flex flex-col lg:flex-row px-4 py-10 gap-6">
+    
+    
+    <!-- 📊 Left Sidebar: Dashboard -->
+<aside class="w-full lg:w-1/2 space-y-6">
 
-      <!-- Chat Box -->
-      <div id="chat-box" class="bg-gray-50 border border-blue-100 rounded-xl p-4 h-[400px] overflow-y-auto shadow mb-4 space-y-4 text-sm">
-        <!-- Messages will be appended here -->
+      <div class="bg-white/80 border border-blue-100 shadow-lg rounded-2xl p-6 backdrop-blur-md">
+        <h2 class="text-xl font-bold text-blue-600 mb-2">📈 Latest Block</h2>
+        <p class="text-sm font-mono">Block: <span id="block-number" class="font-semibold">---</span></p>
+        <p class="text-sm font-mono">Hash: <span id="block-hash">---</span></p>
+        <p class="text-sm font-mono">Time: <span id="block-time">---</span></p>
       </div>
 
-      <!-- Input Area -->
-      <textarea
-        id="prompt"
-        rows="3"
-        placeholder="Ask anything about blockchain transactions..."
-        class="w-full border border-blue-200 rounded-xl p-4 resize-none shadow focus:ring-2 focus:ring-blue-300 mb-2"
-      ></textarea>
+      <div class="bg-white/80 border border-blue-100 shadow-lg rounded-2xl p-6 backdrop-blur-md">
+        <h2 class="text-xl font-bold text-blue-600 mb-2">🌐 Network</h2>
+        <p class="text-sm">Ethereum <span class="text-green-500 ml-1">● Online</span></p>
+      </div>
 
-      <button
-        onclick="askAI()"
-        class="w-full bg-blue-600 text-white font-semibold py-3 px-6 rounded-xl hover:bg-blue-700 transition"
-      >
-        Ask AI
-      </button>
+      <div class="bg-white/80 border border-blue-100 shadow-lg rounded-2xl p-6 backdrop-blur-md">
+        <h2 class="text-xl font-bold text-blue-600 mb-2">📤 Transactions</h2>
+       
+            <!--- this is for dashboard eth -->
+            <ul class="text-xs font-mono space-y-1 text-gray-700">
+              @forelse ($txs as $tx)
+                <li>
+                  {{ \Illuminate\Support\Str::limit($tx['from'], 8) }}
+                  →
+                  {{ \Illuminate\Support\Str::limit($tx['to'], 8) }}
+                  <span class="text-green-500">
+                    {{ number_format(((float) $tx['value']) / 1e18, 4) }} ETH
+                  </span>
+                </li>
+              @empty
+                <li class="text-red-500">No transactions found or failed to load.</li>
+              @endforelse
+            </ul>
+
+      </div>
+    </aside>
+
+    
+<!-- 💬 Right Side: Chat UI -->
+<main class="w-full lg:w-1/2 flex flex-col">
+  <div class="bg-white/80 border border-blue-100 shadow-lg rounded-2xl p-6 backdrop-blur-md flex flex-col h-[85vh]">
+    <h1 class="text-3xl font-bold text-blue-700 mb-2">Chat with me</h1>
+    <p class="text-sm text-gray-500 mb-4">Ask anything about blockchain. Powered by AI.</p>
+
+    <!-- 💬 Chat Box -->
+    <div id="chat-box" class="flex-1 overflow-y-auto space-y-3 p-2 rounded-lg border border-blue-100 bg-gray-50">
+      <!-- Messages will be inserted here -->
     </div>
+
+    <!-- Input Field -->
+    <textarea id="prompt" rows="3" placeholder="Ask about blockchain transactions..."
+      class="mt-4 border border-blue-300 rounded-xl p-3 shadow focus:ring-2 focus:ring-blue-400 resize-none text-sm"></textarea>
+
+    <!-- Ask Button -->
+    <button onclick="askAI()"
+      class="mt-2 bg-gradient-to-r from-blue-500 to-indigo-500 text-white font-semibold py-3 px-6 rounded-xl hover:opacity-90 transition">
+      Ask AI
+    </button>
   </div>
-
-  <script>
-    const chatBox = document.getElementById('chat-box');
-    const promptInput = document.getElementById('prompt');
-
-    // ✅ Load chat history OR show greeting
-    window.onload = function () {
-      const savedHistory = JSON.parse(localStorage.getItem('blockpeek_chat')) || [];
-
-      if (savedHistory.length === 0) {
-        const greeting = "👋 Hi there! I'm Blockpeek AI. Ask me anything about blockchain transactions.";
-        appendMessage("ai", greeting);
-        saveToHistory("ai", greeting);
-      } else {
-        savedHistory.forEach(msg => appendMessage(msg.role, msg.text));
-      }
-
-      scrollToBottom();
-    };
-
-    // ✅ Handle Enter key
-    promptInput.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        askAI();
-      }
-    });
-
-    // ✅ Main Chat Logic
-          async function askAI() {
-        const prompt = promptInput.value.trim();
-        if (!prompt) return;
-
-        if (prompt.toLowerCase() === "/clear") {
-          chatBox.innerHTML = "";
-          localStorage.removeItem("blockpeek_chat");
-          promptInput.value = "";
-          return;
-        }
-
-        appendMessage("user", prompt);
-        saveToHistory("user", prompt);
-        promptInput.value = "";
-
-        appendMessage("ai", `
-          <div class="flex items-center gap-2">
-            <svg class="animate-spin h-5 w-5 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-            </svg>
-            <span class="text-sm text-gray-600">Thinking...</span>
-          </div>
-        `);
-
-        scrollToBottom();
-
-        try {
-          const res = await puter.ai.chat(prompt, { model: "gpt-4.1-nano" });
-
-          removeLastMessage("ai");
-
-          const reply = res?.message?.content || res?.text || JSON.stringify(res);
-          appendMessage("ai", reply);
-          saveToHistory("ai", reply);
-
-          scrollToBottom();
-        } catch (err) {
-          console.error(err);
-          removeLastMessage("ai");
-          appendMessage("ai", "⚠️ Failed to get a response.");
-        }
-      }
+</main>
 
 
-    // ✅ Append message to chat box
-    function appendMessage(sender, text) {
-  const bubble = document.createElement("div");
-  bubble.className = `mb-2 px-4 py-2 rounded-xl max-w-[80%] ${
-    sender === "user"
-      ? "bg-blue-600 text-white self-end ml-auto"
-      : "bg-gray-200 text-gray-900 self-start"
-  }`;
-  bubble.dataset.role = sender;
-
-  // ✅ If it looks like HTML (like SVG), render it as HTML
-  if (text.includes("<svg") || text.includes("</div>")) {
-    bubble.innerHTML = text;
-  } else {
-    bubble.textContent = text;
-  }
-
-  chatBox.appendChild(bubble);
-}
-
-
-    // ✅ Remove spinner
-    function removeLastMessage(role) {
-      const messages = Array.from(chatBox.children).reverse();
-      for (const msg of messages) {
-        if (msg.dataset.role === role) {
-          msg.remove();
-          break;
-        }
-      }
-    }
-
-    // ✅ Save to local storage
-    function saveToHistory(role, text) {
-      const history = JSON.parse(localStorage.getItem('blockpeek_chat')) || [];
-      history.push({ role, text });
-      localStorage.setItem('blockpeek_chat', JSON.stringify(history));
-    }
-
-    function scrollToBottom() {
-      chatBox.scrollTop = chatBox.scrollHeight;
-    }
-  </script>
+  
 
 </body>
 </html>
