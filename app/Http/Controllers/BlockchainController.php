@@ -117,29 +117,36 @@ class BlockchainController extends Controller
     {
         try {
             // Get latest stats
-            $stats = Http::get('https://blockchain.info/stats?format=json');
+            $stats = Http::timeout(10)->get('https://blockchain.info/stats?format=json');
             
             // Get latest blocks
-            $latestBlocks = Http::get('https://blockchain.info/latestblock');
+            $latestBlocks = Http::timeout(10)->get('https://blockchain.info/latestblock');
             
             // Get recent transactions
-            $unconfirmedTxs = Http::get('https://blockchain.info/unconfirmed-transactions?format=json');
+            $unconfirmedTxs = Http::timeout(10)->get('https://blockchain.info/unconfirmed-transactions?format=json');
+
+            $statsData = $stats->successful() ? $stats->json() : [];
+            $latestBlockData = $latestBlocks->successful() ? $latestBlocks->json() : [];
+            $unconfirmedData = $unconfirmedTxs->successful() ? $unconfirmedTxs->json() : [];
 
             return [
                 'network' => 'Bitcoin',
-                'latestBlock' => $latestBlocks->json()['height'] ?? 0,
-                'blockHash' => $latestBlocks->json()['hash'] ?? '',
-                'blockTime' => isset($latestBlocks->json()['time']) ? date('Y-m-d H:i:s', $latestBlocks->json()['time']) : '',
-                'difficulty' => $stats->json()['difficulty'] ?? 0,
-                'hashRate' => $stats->json()['hash_rate'] ?? 0,
-                'totalBtc' => $stats->json()['totalbc'] ?? 0,
-                'transactions' => array_slice($unconfirmedTxs->json()['txs'] ?? [], 0, 10),
-                'mempool' => $stats->json()['n_tx'] ?? 0
+                'latestBlock' => $latestBlockData['height'] ?? 0,
+                'blockHash' => $latestBlockData['hash'] ?? '',
+                'blockTime' => isset($latestBlockData['time']) ? date('Y-m-d H:i:s', $latestBlockData['time']) : '',
+                'difficulty' => $statsData['difficulty'] ?? 0,
+                'hashRate' => $statsData['hash_rate'] ?? 0,
+                'totalBtc' => $statsData['totalbc'] ?? 0,
+                'transactions' => array_slice($unconfirmedData['txs'] ?? [], 0, 10),
+                'mempool' => $statsData['n_tx'] ?? 0
             ];
         } catch (\Exception $e) {
             Log::error('Bitcoin data error: ' . $e->getMessage());
             return [
                 'network' => 'Bitcoin',
+                'latestBlock' => 0,
+                'blockHash' => '',
+                'blockTime' => '',
                 'error' => 'Failed to fetch Bitcoin data'
             ];
         }
