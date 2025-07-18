@@ -85,12 +85,19 @@ class BlockchainController extends Controller
                 'apikey' => $this->etherscanApiKey
             ]);
 
+            $transactionData = $transactions->json();
+            $transactionList = [];
+            
+            if (isset($transactionData['result']) && is_array($transactionData['result'])) {
+                $transactionList = array_slice($transactionData['result'], 0, 10);
+            }
+
             return [
                 'network' => 'Ethereum',
                 'latestBlock' => $blockNumber,
                 'blockHash' => $block['hash'] ?? '',
                 'blockTime' => isset($block['timestamp']) ? date('Y-m-d H:i:s', hexdec($block['timestamp'])) : '',
-                'transactions' => array_slice($transactions->json()['result'] ?? [], 0, 10),
+                'transactions' => $transactionList,
                 'gasPrice' => isset($block['gasUsed']) ? hexdec($block['gasUsed']) : 0,
                 'difficulty' => isset($block['difficulty']) ? hexdec($block['difficulty']) : 0
             ];
